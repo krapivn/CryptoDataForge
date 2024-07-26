@@ -1,0 +1,104 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+from typing import List, Dict
+
+class CryptoDataForge:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = 'https://api.coingecko.com/api/v3'
+        self.data = {}
+
+    def fetch_market_data(self, crypto_id: str, vs_currency: str = 'usd', days: int = 30) -> str:
+        endpoint = f'{self.base_url}/coins/{crypto_id}/market_chart'
+        params = {
+            'vs_currency': vs_currency,
+            'days': days
+        }
+        response = requests.get(endpoint, params=params)
+        if response.status_code == 200:
+            self.data[crypto_id] = response.json()
+            return f"Market data for {crypto_id} fetched successfully."
+        else:
+            return f"Failed to fetch data: {response.status_code} - {response.text}"
+
+    def get_historical_prices(self, crypto_id: str) -> pd.DataFrame:
+        if crypto_id not in self.data:
+            return pd.DataFrame()
+        prices = self.data[crypto_id]['prices']
+        df = pd.DataFrame(prices, columns=['timestamp', 'price'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        return df
+
+    def get_historical_volumes(self, crypto_id: str) -> pd.DataFrame:
+        if crypto_id not in self.data:
+            return pd.DataFrame()
+        volumes = self.data[crypto_id]['total_volumes']
+        df = pd.DataFrame(volumes, columns=['timestamp', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        return df
+
+    def analyze_price_trends(self, crypto_id: str) -> pd.DataFrame:
+        df = self.get_historical_prices(crypto_id)
+        if df.empty:
+            return df
+        df['price_change'] = df['price'].pct_change()
+        df['price_change'].fillna(0, inplace=True)
+        return df
+
+    def plot_price_trends(self, crypto_id: str):
+        df = self.get_historical_prices(crypto_id)
+        if df.empty:
+            print("No data available to plot.")
+            return
+        plt.figure(figsize=(12, 6))
+        plt.plot(df['timestamp'], df['price'], label='Price')
+        plt.title(f'{crypto_id.capitalize()} Price Trends')
+        plt.xlabel('Date')
+        plt.ylabel('Price (USD)')
+        plt.legend()
+        plt.show()
+
+    def plot_volume_trends(self, crypto_id: str):
+        df = self.get_historical_volumes(crypto_id)
+        if df.empty:
+            print("No data available to plot.")
+            return
+        plt.figure(figsize=(12, 6))
+        plt.plot(df['timestamp'], df['volume'], label='Volume', color='orange')
+        plt.title(f'{crypto_id.capitalize()} Volume Trends')
+        plt.xlabel('Date')
+        plt.ylabel('Volume')
+        plt.legend()
+        plt.show()
+
+    def save_data_to_csv(self, crypto_id: str, file_path: str) -> str:
+        df = self.get_historical_prices(crypto_id)
+        if df.empty:
+            return "No data available to save."
+        df.to_csv(file_path, index=False)
+        return f"Data saved to {file_path}"
+
+# Example Usage
+if __name__ == "__main__":
+    # Initialize with your API key if needed (not required for CoinGecko)
+    crypto_data_forge = CryptoDataForge(api_key='')
+
+    # Fetch market data for Bitcoin (BTC) for the past 30 days
+    print(crypto_data_forge.fetch_market_data('bitcoin', 'usd', 30))
+
+    # Fetch market data for Ethereum (ETH) for the past 30 days
+    print(crypto_data_forge.fetch_market_data('ethereum', 'usd', 30))
+
+    # Analyze price trends for Bitcoin
+    btc_prices = crypto_data_forge.analyze_price_trends('bitcoin')
+    print(btc_prices.head())
+
+    # Plot price trends for Bitcoin
+    crypto_data_forge.plot_price_trends('bitcoin')
+
+    # Plot volume trends for Ethereum
+    crypto_data_forge.plot_volume_trends('ethereum')
+
+    # Save Bitcoin data to CSV
+    print(crypto_data_forge.save_data_to_csv('bitcoin', 'bitcoin_data.csv'))
